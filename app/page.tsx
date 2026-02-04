@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import Poster from "../components/Poster";
 
-// --- 图片压缩辅助函数 (Native Canvas 实现) ---
+// --- 极致压缩辅助函数：确保跨国传输不超时 ---
 async function compressImage(file: File): Promise<File> {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -25,7 +25,9 @@ async function compressImage(file: File): Promise<File> {
         const canvas = document.createElement("canvas");
         let width = img.width;
         let height = img.height;
-        const MAX_SIZE = 1200; // 限制最大长边为 1200px，既保质又提速
+        
+        // 核心优化：将长边限制在 800px，这是 AI 识别与传输速度的黄金平衡点
+        const MAX_SIZE = 800; 
 
         if (width > height && width > MAX_SIZE) {
           height *= MAX_SIZE / width;
@@ -42,10 +44,12 @@ async function compressImage(file: File): Promise<File> {
 
         canvas.toBlob(
           (blob) => {
-            resolve(new File([blob!], file.name, { type: "image/jpeg" }));
+            // 使用 jpeg 格式并将质量设为 0.6，大幅减小体积
+            const newFileName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+            resolve(new File([blob!], newFileName, { type: "image/jpeg" }));
           },
           "image/jpeg",
-          0.75 // 75% 质量，兼顾清晰度与体积
+          0.6 
         );
       };
     };
@@ -187,7 +191,7 @@ export default function Home() {
     try {
       const formData = new FormData();
       
-      // --- 关键改进点：提交前压缩图片 ---
+      // 在提交前执行极致压缩
       const compressPromises = [
         ...moments.map(file => compressImage(file).then(c => formData.append("moments", c))),
         ...playlist.map(file => compressImage(file).then(c => formData.append("playlist", c))),
@@ -205,7 +209,7 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        throw new Error("Analysis Timeout or Server Error");
+        throw new Error("Request failed");
       }
 
       const data = await response.json();
@@ -213,8 +217,8 @@ export default function Home() {
     } catch (err) {
       setError(
         language === "zh"
-          ? "分析失败。原因：AI响应超时或网络不稳定，请减少图片重试。"
-          : "Analysis failed. Reason: AI timeout. Please try with fewer images."
+          ? "分析超时或失败。建议：请减少上传的图片数量，或尝试更稳定的网络。"
+          : "Analysis timed out or failed. Hint: Try with fewer images or a more stable connection."
       );
     } finally {
       setLoading(false);
@@ -442,7 +446,7 @@ export default function Home() {
                       <p className="text-xs uppercase tracking-[0.3em] text-white/50">
                         {labels.analysis}
                       </p>
-                      <p className="mt-2 text-sm text-white/80">
+                      <p className="mt-2 text-sm text-white/80 whitespace-pre-wrap">
                         {result.analysis}
                       </p>
                     </div>
