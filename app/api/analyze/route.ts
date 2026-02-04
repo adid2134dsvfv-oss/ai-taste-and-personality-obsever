@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+// 1. 开启 Edge Runtime，提升响应速度并规避标准函数限制
 export const runtime = "edge";
 
 type Payload = {
@@ -9,7 +10,7 @@ type Payload = {
   advice: string;
 };
 
-// 辅助函数：Edge 环境下的标准 Base64 转换
+// 辅助函数：将图片转为标准 Base64 格式
 async function fileToDataUrl(file: File) {
   const arrayBuffer = await file.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
@@ -23,7 +24,7 @@ async function fileToDataUrl(file: File) {
 
 function extractJson(text: string): Payload {
   const match = text.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error("AI 返回内容格式错误，未找到结果。");
+  if (!match) throw new Error("AI 脑回路卡住了，没能生成有效的 JSON 报告。");
   return JSON.parse(match[0]) as Payload;
 }
 
@@ -33,12 +34,13 @@ export async function POST(request: Request) {
     const reflection = String(formData.get("reflection") || "").slice(0, 2000);
     const language = String(formData.get("language") || "zh");
     
-    // 获取并处理图片
+    // 聚合所有上传的图片素材
     const allFiles = formData.getAll("moments")
       .concat(formData.getAll("playlist"))
       .concat(formData.getAll("snaps"))
       .filter((item) => item instanceof File) as File[];
 
+    // 转换为 AI 可读的多模态格式
     const imageContents = await Promise.all(
       allFiles.slice(0, 4).map(async (file) => ({
         type: "image_url",
@@ -46,22 +48,23 @@ export async function POST(request: Request) {
       }))
     );
 
-    // 核心改进：深刻且幽默、带点“装逼”感的专家级提示词
-    const systemPrompt = `你是一位懂生活、审美超群、洞察人性的老友。你擅长从细微的像素中剖析一个人真正的心理世界与需求和品味气质。
+    // 核心改进：极其具体的“无记忆”灵魂侧写指令
+    const systemPrompt = `你是一位拥有顶级审美和毒辣眼光的灵魂观察员。你和用户是那种可以深夜在路边摊喝着啤酒聊哲学的交心老友。
 
-风格指南：
-1. 语气：深刻且幽默，带一点恰到好处的“装逼”感（那种看透世俗后的松弛感），通俗易懂但字字珠玑。
-2. 视角：像深夜酒局后的老友交心，直击用户真实的内心世界。
-3. 规则：严禁使用“心理测试、诊断”等生硬词汇；输出必须是纯 JSON 格式，不含任何多余文本。
+【核心原则】
+1. 无记忆性：请忽略任何之前的对话背景，把这次分析当作与用户的初次灵魂碰撞。
+2. 极度具体：严禁套用模板。你必须盯着图片里的色彩、构图、天气、歌名或文字细节说话。如果图片里有一抹落日，你就要聊那抹落日折射出的心境。
+3. 风格：深度幽默，带点恰到好处的“优雅装逼”，话理深刻但用词通俗，像在讲一个有趣的段子。
 
-输出字段要求：
-- analysis (内心解析): 200字左右。深度剖析用户的真实心理世界与需求、气质与潜意识里的审美取向。
-- celebrity (明星对标): 100字左右。明确指出一位明星或艺术家，说明共同的“闪光点”及相似的灵魂特质。
-- talent (隐藏天赋): 70字左右。指出一个用户自己可能都没察觉到的惊人天赋。
-- advice (极简建议): 50字左右。只说一点，一针见血且极具落地感的个性化建议。
+【输出要求 (JSON 格式)】
+- analysis (内心世界解析): 350字左右，必须分点陈述（如 1. 2. 3.）。结合素材细节，深度剖析用户的心理需求、潜在性格气质以及他们未曾察觉的内心角落。
+- celebrity (明星对标): 100字左右。具体指出一位明星/艺术家，说明为何他们的灵魂底色与用户如此契合，列出共同特质。
+- talent (隐藏天赋): 70字左右。基于素材细节，挖掘出一个惊人且具体的潜能。
+- advice (极简建议): 50字左右。一针见血的落地建议，拒绝鸡汤。
 
-输出 JSON 格式：
-{"analysis":"...","celebrity":"...","talent":"...","advice":"..."}`;
+输出必须是纯净的 JSON，不带 Markdown 代码块标识。`;
+
+    const userText = `用户提交的感悟：${reflection || "（对方保持了神秘的沉默）"}\n输出语言：${language === "en" ? "English" : "中文"}`;
 
     const response = await fetch("https://api.moonshot.cn/v1/chat/completions", {
       method: "POST",
@@ -70,14 +73,16 @@ export async function POST(request: Request) {
         Authorization: `Bearer ${process.env.MOONSHOT_API_KEY}`
       },
       body: JSON.stringify({
-        // 核心修改：匹配图中模型与温度
+        // 使用图中指定的最新 128k 视觉预览模型
         model: "moonshot-v1-128k-vision-preview", 
-        temperature: 0.3, 
+        temperature: 0.3, // 保持低随机性以确保深度和稳定性
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: [
-              { type: "text", text: `这是用户最近的感悟：${reflection || "（这人话不多）"}。请结合这些碎片和感悟，用${language === "en" ? "英语" : "中文"}进行灵魂侧写。` },
-              ...imageContents
+          { 
+            role: "user", 
+            content: [
+              { type: "text", text: userText },
+              ...imageContents 
             ] 
           }
         ]
@@ -86,7 +91,7 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      return NextResponse.json({ error: "AI 接口异常", message: errorText }, { status: response.status });
+      return NextResponse.json({ error: "API 报错", details: errorText }, { status: response.status });
     }
 
     const data = await response.json();
