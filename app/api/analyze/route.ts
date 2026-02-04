@@ -76,8 +76,8 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         // 核心修改：使用图中指定的模型与温度设置
-        model: "kimi-k2.5", 
-        temperature: 0.6, 
+        model: "moonshot-v1-128k-vision-preview", 
+        temperature: 0.81, 
         messages: [
           { role: "system", content: systemPrompt },
           { 
