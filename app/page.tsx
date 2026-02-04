@@ -13,6 +13,45 @@ import {
 } from "lucide-react";
 import Poster from "../components/Poster";
 
+// --- 图片压缩辅助函数 (Native Canvas 实现) ---
+async function compressImage(file: File): Promise<File> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.src = e.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+        const MAX_SIZE = 1200; // 限制最大长边为 1200px，既保质又提速
+
+        if (width > height && width > MAX_SIZE) {
+          height *= MAX_SIZE / width;
+          width = MAX_SIZE;
+        } else if (height > MAX_SIZE) {
+          width *= MAX_SIZE / height;
+          height = MAX_SIZE;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            resolve(new File([blob!], file.name, { type: "image/jpeg" }));
+          },
+          "image/jpeg",
+          0.75 // 75% 质量，兼顾清晰度与体积
+        );
+      };
+    };
+  });
+}
+
 const LOADING_LINES = [
   "正在穿透像素审视你的灵魂...",
   "正在你的歌单里寻找共鸣...",
@@ -147,9 +186,16 @@ export default function Home() {
 
     try {
       const formData = new FormData();
-      moments.forEach((file) => formData.append("moments", file));
-      playlist.forEach((file) => formData.append("playlist", file));
-      snaps.forEach((file) => formData.append("snaps", file));
+      
+      // --- 关键改进点：提交前压缩图片 ---
+      const compressPromises = [
+        ...moments.map(file => compressImage(file).then(c => formData.append("moments", c))),
+        ...playlist.map(file => compressImage(file).then(c => formData.append("playlist", c))),
+        ...snaps.map(file => compressImage(file).then(c => formData.append("snaps", c)))
+      ];
+
+      await Promise.all(compressPromises);
+      
       formData.append("reflection", reflection);
       formData.append("language", language);
 
@@ -159,22 +205,16 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        throw new Error("Request failed");
+        throw new Error("Analysis Timeout or Server Error");
       }
 
-      const data = (await response.json()) as {
-        analysis: string;
-        celebrity: string;
-        talent: string;
-        advice: string;
-      };
-
+      const data = await response.json();
       setResult(data);
     } catch (err) {
       setError(
         language === "zh"
-          ? "分析失败，请稍后再试。"
-          : "Analysis failed. Please try again later."
+          ? "分析失败。原因：AI响应超时或网络不稳定，请减少图片重试。"
+          : "Analysis failed. Reason: AI timeout. Please try with fewer images."
       );
     } finally {
       setLoading(false);
