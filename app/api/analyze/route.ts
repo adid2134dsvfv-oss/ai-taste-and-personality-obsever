@@ -46,7 +46,22 @@ export async function POST(request: Request) {
       }))
     );
 
-    const systemPrompt = `你是一位高情商老友，请分析用户的品味。输出必须是纯 JSON 格式：{"analysis":"...","celebrity":"...","talent":"...","advice":"..."}`;
+    // 核心改进：深度幽默、带点“装逼”感的专家级提示词
+    const systemPrompt = `你是一位懂生活、审美超群、洞察人性的老友。你擅长从细微的像素中剖析一个人真正的心理世界与需求和品味气质。
+
+风格指南：
+1. 语气：深度幽默，带一点恰到好处的“装逼”感（那种看透世俗后的松弛感），通俗易懂但字字珠玑。
+2. 视角：像深夜酒局后的老友交心，直击用户真实的内心世界。
+3. 规则：严禁使用“心理测试、诊断”等生硬词汇；输出必须是纯 JSON 格式，不含任何多余文本。
+
+输出字段要求：
+- analysis (内心解析): 200字左右。深度剖析用户的真实心理世界与需求、气质与潜意识里的审美取向。
+- celebrity (明星对标): 100字左右。明确指出一位明星或艺术家，说明共同的“闪光点”及相似的灵魂特质。
+- talent (隐藏天赋): 70字左右。指出一个用户自己可能都没察觉到的惊人天赋。
+- advice (极简建议): 50字左右。只说一点，一针见血且极具落地感的个性化建议。
+
+输出 JSON 格式：
+{"analysis":"...","celebrity":"...","talent":"...","advice":"..."}`;
 
     const response = await fetch("https://api.moonshot.cn/v1/chat/completions", {
       method: "POST",
@@ -55,13 +70,13 @@ export async function POST(request: Request) {
         Authorization: `Bearer ${process.env.MOONSHOT_API_KEY}`
       },
       body: JSON.stringify({
-        // 核心修改：使用最通用的 vision 支持 ID
-        model: "moonshot-v1-8k", 
-        temperature: 0.3,
+        // 核心修改：匹配图中模型与温度
+        model: "moonshot-v1-128k-vision-preview", 
+        temperature: 0.3, 
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: [
-              { type: "text", text: `感悟：${reflection}，语言：${language}` },
+              { type: "text", text: `这是用户最近的感悟：${reflection || "（这人话不多）"}。请结合这些碎片和感悟，用${language === "en" ? "英语" : "中文"}进行灵魂侧写。` },
               ...imageContents
             ] 
           }
@@ -70,12 +85,8 @@ export async function POST(request: Request) {
     });
 
     if (!response.ok) {
-      const errorText = await response.text(); // 获取 API 返回的具体报错文本
-      console.error("Moonshot Error Detail:", errorText);
-      return NextResponse.json({ 
-        error: "AI 接口报错", 
-        message: errorText 
-      }, { status: response.status });
+      const errorText = await response.text();
+      return NextResponse.json({ error: "AI 接口异常", message: errorText }, { status: response.status });
     }
 
     const data = await response.json();
