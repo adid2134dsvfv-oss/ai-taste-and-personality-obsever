@@ -1,4 +1,32 @@
-// ... 其他代码保持不变 ...
+import { NextResponse } from "next/server";
+
+// 1. 强制开启 Edge Runtime，提升响应并绕过 Netlify 10s 限制
+export const runtime = "edge";
+
+type Payload = {
+  analysis: string;
+  celebrity: string;
+  talent: string;
+  advice: string;
+};
+
+// 辅助函数：Edge 环境下的 Base64 转换
+async function fileToDataUrl(file: File) {
+  const arrayBuffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const base64 = btoa(binary);
+  return `data:${file.type};base64,${base64}`;
+}
+
+function extractJson(text: string): Payload {
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error("AI 报告生成失败，请重试。");
+  return JSON.parse(match[0]) as Payload;
+}
 
 export async function POST(request: Request) {
   try {
@@ -6,46 +34,52 @@ export async function POST(request: Request) {
     const reflection = String(formData.get("reflection") || "").slice(0, 2000);
     const language = String(formData.get("language") || "zh");
     
-    // ... 图片处理代码保持不变 ...
+    // 聚合素材
+    const allFiles = formData.getAll("moments")
+      .concat(formData.getAll("playlist"))
+      .concat(formData.getAll("snaps"))
+      .filter((item) => item instanceof File) as File[];
 
-    // 修改 1: 移除提示词中的默认“沉默”文本，防止污染
-    // 原来是：${reflection || "（对方保持了神秘的沉默）"}
-    // 现在改为：如果为空，传一个中性描述，或者直接留空，不要让模型看到“沉默”二字
-    const userReflectionText = reflection ? `用户感悟：${reflection}` : "用户没有提供额外的文字感悟，仅通过图片表达。";
-    
-    const systemPrompt = `你是一个拥有审美和分析他人性格，品味，气质的技巧的ai。你和用户是老朋友。
+    const imageContents = await Promise.all(
+      allFiles.slice(0, 4).map(async (file) => ({
+        type: "image_url",
+        image_url: { url: await fileToDataUrl(file) }
+      }))
+    );
+
+    // --- 核心优化：纯净、客观且具体的指令 ---
+    const systemPrompt = `你是一位拥有敏锐观察力和深厚审美功底的灵魂观察员。你和用户是交情匪浅的老友。
 
 【核心原则】
-1. 无记忆性：请忽略任何之前的对话背景，把这次分析当作一次全新的性格，品味，气质分析。
-2. 比较具体：严禁套用模板。
-3. 风格：幽默，有见解，用词好理解。
+1. 无记忆性：请忽略任何之前的对话，每一次分析都是一次全新的、独立的性格与品味解析。
+2. 视觉优先：严禁使用万能模板。你必须观察图片中的具体视觉事实（如构图、主色调、歌单中的具体歌名、文字中的关键词）来给出具体分析。
+3. 纯净客观：不要预设用户的性格。不要因为文字少就假设用户“沉默”或“内向”。如果文字缺失，请全权通过图片细节推导。
+4. 风格：幽默、深刻、带点恰到好处的优雅感，用词通俗好理解。
 
 【输出要求 (JSON 格式)】
-- analysis (内心解析): 350字左右，必须分点陈述（如 1. 2. 3.）。分析用户的真实心理世界、气质以及他们独特品味。
-- celebrity (明星对标): 100字左右。明确指出一位明星/艺术家，说明为何性格特质差不多，列出共同点。
-- talent (隐藏天赋): 70字左右。指出一个用户自己可能没察觉到的天赋。
-- advice (极简建议): 50字左右。只说一点，可落地的建议。
+- analysis (内心解析): 350字左右，必须分点陈述。基于视觉和文字细节，深入分析用户的真实心理世界、气质及独特品味。
+- celebrity (明星对标): 100字左右。明确指出一位明星/艺术家，说明为何性格特质神似，列出具体共同点。
+- talent (隐藏天赋): 70字左右。基于素材细节，指出一个用户可能未察觉的天赋。
+- advice (极简建议): 50字左右。给出一个一针见血、可落地的建议。
 
-// 修改 2: 明确告诉模型，输出必须是标准的 JSON 对象，不要有任何其他文字
-输出必须是纯净的 JSON 对象，不要包含任何 Markdown 代码块标识（如 \`\`\`json），直接输出 JSON 字符串。`;
+输出必须是纯净 JSON，严禁带 Markdown 标识。`;
 
-    const userText = `${userReflectionText}\n输出语言：${
+    // 去除“神秘、沉默”等暗示性词汇
+    const userText = `用户感悟：${reflection || "（未提供文字感悟）"}\n输出语言：${
       language === "en" ? "English" : "中文"
     }`;
 
-    // 修改 3: 在请求体中添加 response_format，强制模型输出 JSON
     const response = await fetch("https://api.moonshot.cn/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.MOONSHOT_API_KEY}`
+        Authorization: `Bearer ${process.env.MOONSHOT_API_KEY || ""}`
       },
       body: JSON.stringify({
+        // 匹配图中指定的视觉模型
         model: "moonshot-v1-128k-vision-preview", 
+        // 严格按照要求设定温度
         temperature: 0.81, 
-        // --- 关键新增 ---
-        response_format: { type: "json_object" }, 
-        // --- 关键新增 ---
         messages: [
           { role: "system", content: systemPrompt },
           { 
@@ -65,24 +99,8 @@ export async function POST(request: Request) {
     }
 
     const data = await response.json();
-    const content = data.choices?.?.message?.content || "";
-
-    // 修改 4: 移除脆弱的正则匹配，直接尝试解析
-    // 因为我们开启了 response_format，content 应该已经是纯 JSON 字符串了
-    let parsed;
-    try {
-      parsed = JSON.parse(content);
-    } catch (parseError) {
-      // 如果还是解析失败（理论上不应该，除非 API 出错），返回一个通用的错误，而不是包含“沉默”的错误
-      console.error("JSON Parse Error:", parseError, content);
-      return NextResponse.json({ 
-        error: "解析失败", 
-        analysis: "无法分析图片，请尝试上传更清晰或更具代表性的照片。", 
-        celebrity: "暂无", 
-        talent: "暂无", 
-        advice: "换个角度拍照试试" 
-      });
-    }
+    const content = data.choices?.[0]?.message?.content || "";
+    const parsed = extractJson(content);
 
     return NextResponse.json(parsed);
   } catch (error: any) {
