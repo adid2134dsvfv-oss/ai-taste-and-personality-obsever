@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 3. 风格：幽默，有见解，用词好理解。
 
 【输出要求 (JSON 格式)】
-- analysis (内心解析): 300字左右，必须分点陈述（如 1. 2. 3.）。分析用户的真实心理世界、气质以及他们独特品味。
+- analysis (内心解析): 350字左右，必须分点陈述（如 1. 2. 3.）。分析用户的真实心理世界、气质以及他们独特品味。
 - celebrity (明星对标): 100字左右。明确指出一位明星/艺术家，说明为何性格特质差不多，列出共同点。
 - talent (隐藏天赋): 70字左右。指出一个用户自己可能没察觉到的天赋。
 - advice (极简建议): 50字左右。只说一点，可落地的建议。
@@ -76,8 +76,8 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         // 核心修改：使用图中指定的模型与温度设置
-        model: "moonshot-v1-128k", 
-        temperature: 0.8, 
+        model: "kimi-k2.5", 
+        temperature: 0.6, 
         messages: [
           { role: "system", content: systemPrompt },
           { 
