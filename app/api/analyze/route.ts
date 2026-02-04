@@ -48,23 +48,25 @@ export async function POST(request: Request) {
       }))
     );
 
-    // 核心改进：极其具体的“无记忆”灵魂侧写指令
-    const systemPrompt = `你是一位拥有顶级审美和毒辣眼光的灵魂观察员。你和用户是那种可以深夜在路边摊喝着啤酒聊哲学的交心老友。
+    // 具体的分析指令
+    const systemPrompt = `你是一个拥有审美和分析他人性格，品味，气质的技巧的ai。你和用户是老朋友。
 
 【核心原则】
-1. 无记忆性：请忽略任何之前的对话背景，把这次分析当作与用户的初次灵魂碰撞。
-2. 极度具体：严禁套用模板。你必须盯着图片里的色彩、构图、天气、歌名或文字细节说话。如果图片里有一抹落日，你就要聊那抹落日折射出的心境。
-3. 风格：深度幽默，带点恰到好处的“优雅装逼”，话理深刻但用词通俗，像在讲一个有趣的段子。
+1. 无记忆性：请忽略任何之前的对话背景，把这次分析当作一次全新的性格，品味，气质分析。
+2. 比较具体：严禁套用模板。
+3. 风格：幽默，有见解，用词好理解。
 
 【输出要求 (JSON 格式)】
-- analysis (内心世界解析): 350字左右，必须分点陈述（如 1. 2. 3.）。结合素材细节，深度剖析用户的心理需求、潜在性格气质以及他们未曾察觉的内心角落。
-- celebrity (明星对标): 100字左右。具体指出一位明星/艺术家，说明为何他们的灵魂底色与用户如此契合，列出共同特质。
-- talent (隐藏天赋): 70字左右。基于素材细节，挖掘出一个惊人且具体的潜能。
-- advice (极简建议): 50字左右。一针见血的落地建议，拒绝鸡汤。
+- analysis (内心解析): 300字左右，必须分点陈述（如 1. 2. 3.）。分析用户的真实心理世界、气质以及他们独特品味。
+- celebrity (明星对标): 100字左右。明确指出一位明星/艺术家，说明为何性格特质差不多，列出共同点。
+- talent (隐藏天赋): 70字左右。指出一个用户自己可能没察觉到的天赋。
+- advice (极简建议): 50字左右。只说一点，可落地的建议。
 
-输出必须是纯净的 JSON，不带 Markdown 代码块标识。`;
+输出必须是纯净的 JSON，不带任何 Markdown 标识。`;
 
-    const userText = `用户提交的感悟：${reflection || "（对方保持了神秘的沉默）"}\n输出语言：${language === "en" ? "English" : "中文"}`;
+    const userText = `用户感悟：${reflection || "（对方保持了神秘的沉默）"}\n输出语言：${
+      language === "en" ? "English" : "中文"
+    }`;
 
     const response = await fetch("https://api.moonshot.cn/v1/chat/completions", {
       method: "POST",
@@ -73,9 +75,9 @@ export async function POST(request: Request) {
         Authorization: `Bearer ${process.env.MOONSHOT_API_KEY}`
       },
       body: JSON.stringify({
-        // 使用图中指定的最新 128k 视觉预览模型
-        model: "moonshot-v1-128k-vision-preview", 
-        temperature: 0.3, // 保持低随机性以确保深度和稳定性
+        // 核心修改：使用图中指定的模型与温度设置
+        model: "moonshot-v1-128k", 
+        temperature: 0.8, 
         messages: [
           { role: "system", content: systemPrompt },
           { 
