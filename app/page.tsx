@@ -156,12 +156,13 @@ export default function Home() {
   const [snaps, setSnaps] = useState<File[]>([]);
   const [reflection, setReflection] = useState("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{
-    analysis: string;
-    celebrity: string;
-    talent: string;
-    advice: string;
-  } | null>(null);
+  // const [result, setResult] = useState<{
+  //   analysis: string;
+  //   celebrity: string;
+  //   talent: string;
+  //   advice: string;
+  // } | null>(null);
+  const [result, setResult] = useState({});
   const [error, setError] = useState<string | null>(null);
   const [lineIndex, setLineIndex] = useState(0);
   const posterRef = useRef<HTMLDivElement>(null);
@@ -185,7 +186,7 @@ export default function Home() {
 
   const handleSubmit = async () => {
     setError(null);
-    setResult(null);
+    setResult({});
     setLoading(true);
 
     try {
@@ -213,6 +214,7 @@ export default function Home() {
       }
 
       const data = await response.json();
+      console.log('res data2121111', data);
       setResult(data);
     } catch (err) {
       setError(
@@ -436,68 +438,20 @@ export default function Home() {
                 </button>
               </div>
             ) : (
-              <div className="space-y-4 rounded-[32px] border border-white/15 bg-white/5 p-6">
-                <p className="text-sm uppercase tracking-[0.3em] text-white/50">
-                  {labels.report}
-                </p>
-                {result ? (
-                  <div className="space-y-4">
-                    <div className="rounded-3xl border border-white/15 bg-black/30 p-4">
-                      <p className="text-xs uppercase tracking-[0.3em] text-white/50">
-                        {labels.analysis}
-                      </p>
-                      <p className="mt-2 text-sm text-white/80 whitespace-pre-wrap">
-                        {result.analysis}
-                      </p>
-                    </div>
-                    <div className="rounded-3xl border border-white/15 bg-black/30 p-4">
-                      <p className="text-xs uppercase tracking-[0.3em] text-white/50">
-                        {labels.celebrity}
-                      </p>
-                      <p className="mt-2 text-sm text-white/80">
-                        {result.celebrity}
-                      </p>
-                    </div>
-                    <div className="rounded-3xl border border-white/15 bg-black/30 p-4">
-                      <p className="text-xs uppercase tracking-[0.3em] text-white/50">
-                        {labels.talent}
-                      </p>
-                      <p className="mt-2 text-sm text-white/80">
-                        {result.talent}
-                      </p>
-                    </div>
-                    <div className="rounded-3xl border border-white/15 bg-black/30 p-4">
-                      <p className="text-xs uppercase tracking-[0.3em] text-white/50">
-                        {labels.advice}
-                      </p>
-                      <p className="mt-2 text-sm text-white/80">
-                        {result.advice}
-                      </p>
-                    </div>
-                    <p className="text-xs text-white/40">
-                      {labels.disclaimer}
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-white/60">
-                    {language === "zh"
-                      ? "上传素材后即可看到结果。"
-                      : "Upload materials to see the result."}
-                  </p>
-                )}
-              </div>
+              ``
             )}
 
-            {result && (
+            {result && Object.keys(result).length > 0 && (
               <div className="space-y-4">
                 <Poster
                   ref={posterRef}
-                  name={language === "zh" ? "灵魂报告" : "Soul Report"}
-                  analysis={result.analysis}
-                  celebrity={result.celebrity}
-                  talent={result.talent}
-                  advice={result.advice}
-                  language={language}
+                  // name={language === "zh" ? "灵魂报告" : "Soul Report"}
+                  // analysis={result.analysis}
+                  // celebrity={result.celebrity}
+                  // talent={result.talent}
+                  // advice={result.advice}
+                  // language={language}
+                    data={result}
                 />
                 <button
                   type="button"
