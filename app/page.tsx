@@ -5,7 +5,7 @@ import { toPng } from "html-to-image";
 import {
   CloudUpload,
   Globe,
-  Image as ImageIcon,
+  ImageIcon,
   LoaderCircle,
   Music2,
   Sparkles,
@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import Poster from "../components/Poster";
 
-// --- 极致压缩辅助函数：确保跨国传输不超时 ---
+// --- 深度优化压缩辅助函数：平衡识别精度与传输速度 ---
 async function compressImage(file: File): Promise<File> {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -26,8 +26,8 @@ async function compressImage(file: File): Promise<File> {
         let width = img.width;
         let height = img.height;
         
-        // 核心优化：将长边限制在 800px，这是 AI 识别与传输速度的黄金平衡点
-        const MAX_SIZE = 800; 
+        // 核心优化：提升至 1280px 以确保 AI 能看清截图中的文字细节
+        const MAX_SIZE = 1280; 
 
         if (width > height && width > MAX_SIZE) {
           height *= MAX_SIZE / width;
@@ -40,16 +40,20 @@ async function compressImage(file: File): Promise<File> {
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext("2d");
-        ctx?.drawImage(img, 0, 0, width, height);
+        if (ctx) {
+          // 开启高质量图像绘制
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
+          ctx.drawImage(img, 0, 0, width, height);
+        }
 
         canvas.toBlob(
           (blob) => {
-            // 使用 jpeg 格式并将质量设为 0.6，大幅减小体积
             const newFileName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
             resolve(new File([blob!], newFileName, { type: "image/jpeg" }));
           },
           "image/jpeg",
-          0.6 
+          0.8 // 提升至 0.8，减少文字周围的伪影，极大辅助 AI OCR 识别
         );
       };
     };
@@ -156,12 +160,6 @@ export default function Home() {
   const [snaps, setSnaps] = useState<File[]>([]);
   const [reflection, setReflection] = useState("");
   const [loading, setLoading] = useState(false);
-  // const [result, setResult] = useState<{
-  //   analysis: string;
-  //   celebrity: string;
-  //   talent: string;
-  //   advice: string;
-  // } | null>(null);
   const [result, setResult] = useState({});
   const [error, setError] = useState<string | null>(null);
   const [lineIndex, setLineIndex] = useState(0);
@@ -192,7 +190,6 @@ export default function Home() {
     try {
       const formData = new FormData();
       
-      // 在提交前执行极致压缩
       const compressPromises = [
         ...moments.map(file => compressImage(file).then(c => formData.append("moments", c))),
         ...playlist.map(file => compressImage(file).then(c => formData.append("playlist", c))),
@@ -214,7 +211,6 @@ export default function Home() {
       }
 
       const data = await response.json();
-      console.log('res data2121111', data);
       setResult(data);
     } catch (err) {
       setError(
@@ -437,21 +433,13 @@ export default function Home() {
                   next
                 </button>
               </div>
-            ) : (
-              ``
-            )}
+            ) : null}
 
             {result && Object.keys(result).length > 0 && (
               <div className="space-y-4">
                 <Poster
                   ref={posterRef}
-                  // name={language === "zh" ? "灵魂报告" : "Soul Report"}
-                  // analysis={result.analysis}
-                  // celebrity={result.celebrity}
-                  // talent={result.talent}
-                  // advice={result.advice}
-                  // language={language}
-                    data={result}
+                  data={result}
                 />
                 <button
                   type="button"
