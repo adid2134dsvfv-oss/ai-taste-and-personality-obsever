@@ -3,16 +3,24 @@
 import { forwardRef } from "react";
 
 interface PosterProps {
-  name: string;
-  analysis: string;
-  celebrity: string;
-  talent: string;
-  advice: string;
-  language: "zh" | "en";
+  // name: string;
+  // analysis: string;
+  // celebrity: string;
+  // talent: string;
+  // advice: string;
+  // language: "zh" | "en";
+  data: Object,
 }
 
 const Poster = forwardRef<HTMLDivElement, PosterProps>(
-  ({ name, analysis, celebrity, talent, advice, language }, ref) => {
+  // ({ name, analysis, celebrity, talent, advice, language }, ref) => {
+  ({ data }, ref) => {
+    if (!data || Object.keys(data).length === 0) {
+      return null
+    }
+    console.log('data', data);
+    console.log('ref', ref);
+    const language = "zh";
     const labels =
       language === "zh"
         ? {
@@ -44,10 +52,10 @@ const Poster = forwardRef<HTMLDivElement, PosterProps>(
           <h2 className="font-display text-3xl tracking-tight">
             {labels.title}
           </h2>
-          <p className="text-sm text-white/60">{name}</p>
+          {/* <p className="text-sm text-white/60">{name}</p> */}
         </header>
         <section className="mt-6 space-y-5">
-          <div>
+          {/* <div>
             <p className="text-xs uppercase tracking-[0.3em] text-white/50">
               {labels.analysis}
             </p>
@@ -78,7 +86,17 @@ const Poster = forwardRef<HTMLDivElement, PosterProps>(
             <p className="mt-2 text-sm leading-relaxed text-white/90">
               {advice}
             </p>
-          </div>
+          </div> */}
+{Object.entries(data ?? {}).map(([key, value]) => (
+      <div key={key}>
+        <p className="text-xs uppercase tracking-[0.3em] text-white/50">
+          {key}
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-white/90">
+          {value}
+        </p>
+      </div>
+    ))}
         </section>
         <footer className="mt-8 border-t border-white/20 pt-6 text-xs text-white/50">
           {language === "zh"
