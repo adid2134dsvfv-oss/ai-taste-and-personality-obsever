@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 
-// 依然保留 Edge Runtime 提升网络性能
+// 使用 Edge Runtime 确保在全球范围内（包括香港节点）拥有最佳响应速度
 export const runtime = "edge";
 
-// 更新后的数据结构，仅保留核心两项
+// 定义输出结构，仅保留核心的两项深度分析
 type Payload = {
   analysis: string;
   celebrity: string;
 };
 
-// 辅助函数：将图片转为 Base64
+// 辅助函数：将图片文件转换为符合智谱 API 规范的 Base64 Data URL
 async function fileToDataUrl(file: File) {
   const arrayBuffer = await file.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
@@ -20,7 +20,7 @@ async function fileToDataUrl(file: File) {
   return `data:${file.type};base64,${btoa(binary)}`;
 }
 
-// 辅助函数：从返回内容中提取 JSON
+// 辅助函数：从 AI 的混合文本中精准提取 JSON 数据块
 function extractJson(text: string): Payload {
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) throw new Error("AI 报告生成格式错误");
@@ -33,12 +33,13 @@ export async function POST(request: Request) {
     const reflection = String(formData.get("reflection") || "").slice(0, 2000);
     const language = String(formData.get("language") || "zh");
     
-    // 收集图片
+    // 聚合用户上传的所有碎片图片
     const allFiles = formData.getAll("moments")
       .concat(formData.getAll("playlist"))
       .concat(formData.getAll("snaps"))
       .filter((item) => item instanceof File) as File[];
 
+    // 智谱视觉模型支持多图输入，我们将前 4 张图片转为 Base64 数组
     const imageContents = await Promise.all(
       allFiles.slice(0, 4).map(async (file) => ({
         type: "image_url",
@@ -46,34 +47,34 @@ export async function POST(request: Request) {
       }))
     );
 
-    // 优化的“由点及面”文学感提示词
+    // 提示词：强调接地气、由点及面的文学感，并严禁套路话
     const userPrompt = `【任务：灵魂碎片素描】
-请你当一回我的“生活观察员”。请仔细盯着我分享的这些碎片看，结合我的感悟，给我写一段话。
+你好，请作为我的“生活观察员”，帮我解读一下这些生活碎片。
 
 要求：
-1. **微观切入**：请先从照片里一个“极其微小”的细节出发（比如歌单里某句歌词、照片某个角落的光影、或者物品的一个摆放习惯）。
-2. **宏观观察**：通过这个小细节，慢慢把视角拉远，聊聊你对我整体气质、性格和生活状态的观察。要看局部，也要看整体。
-3. **语言风格**：像老朋友聊天一样接地气、通俗。要有散文般的文学感和画面感，但别整那些深奥的词。
-4. **拒绝套路**：绝对不准说“内心细腻”、“热爱生活”、“善于沟通”这种 AI 万金油废话。
+1. **微观切入**：请从我提供的图片中，盯住一个“极其细小”的局部（比如歌单里某句触动你的歌词、照片角落里的一束光影、或者某个随手摆放的物件）。
+2. **由点及面**：通过这个微小的切入点，慢慢把视角拉远，聊聊你对我整体气质、生活品味和灵魂状态的观察。要看局部，更要看局部折射出的整体。
+3. **拒绝套路**：绝对不准说“内心细腻”、“热爱生活”、“善于表达”等没营养的 AI 废话。要定制化，要像个懂我的老朋友。
+4. **语言风格**：通俗易懂、接地气，带点散文般的文学感，但不要堆砌辞藻。
 
-请仅以纯 JSON 格式输出，不要说任何额外文字：
+请严格仅以纯 JSON 格式输出：
 {
-  "analysis": "550字左右：从极致微观细节切入，延伸到整体气质的深度聊天。要深刻、动人、好读。",
-  "celebrity": "150字左右：哪位知名明星散发的磁场与我神似？描述那种整体氛围的共鸣感。"
+  "analysis": "550字左右：从小细节延伸到整体人格画像的深度聊天。要深刻、动人、好读。",
+  "celebrity": "150字左右：哪位知名人物的“磁场”跟我神似？聊聊那种整体氛围的共鸣。"
 }
 
-我的感悟：${reflection}
+我的文字感悟：${reflection}
 输出语言：${language === "zh" ? "中文" : "English"}`;
 
-    const response = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
+    const response = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions",) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // 请确保在 Zeabur 环境变量中配置了 ZHIPU_API_KEY
-        "Authorization": `Bearer ${process.env.ZHIPU_API_KEY || "6d6ab0a962484588b2064a76d0d8756d.nf5Mx4uWVUqGh5DJ"}`
+        // 从 Zeabur 环境变量中读取 API Key
+        "Authorization": `Bearer ${process.env.ZHIPU_API_KEY}`
       },
       body: JSON.stringify({
-        model: "glm-4v-flash", 
+        model: "glm-4.6v-flash", // 切换至用户指定的最新 4.6V 视觉模型
         messages: [
           { 
             role: "user", 
@@ -83,22 +84,23 @@ export async function POST(request: Request) {
             ] 
           }
         ],
-        temperature: 0.88, // 保持灵气与不重复
+        // 关键参数：开启采样并设置温度，确保输出不重复且有灵气
+        do_sample: true,
+        temperature: 0.88, 
         top_p: 0.9,
-        max_tokens: 2500,
-        stream: false
+        max_tokens: 2500
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      return NextResponse.json({ error: "接口连接失败", details: errorText }, { status: response.status });
+      return NextResponse.json({ error: "智谱接口响应异常", details: errorText }, { status: response.status });
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || "";
     
-    // 解析并返回给前端
+    // 解析结果并返回给前端
     const parsed = extractJson(content);
     return NextResponse.json(parsed);
 
