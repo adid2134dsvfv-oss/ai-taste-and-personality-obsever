@@ -66,7 +66,7 @@ export async function POST(request: Request) {
 我的文字感悟：${reflection}
 输出语言：${language === "zh" ? "中文" : "English"}`;
 
-    const response = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions",) {
+    const response = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
