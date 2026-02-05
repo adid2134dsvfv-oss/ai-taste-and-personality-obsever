@@ -3,13 +3,13 @@ import { NextResponse } from "next/server";
 // 依然保留 Edge Runtime 提升网络性能
 export const runtime = "edge";
 
+// 更新后的数据结构，仅保留核心两项
 type Payload = {
   analysis: string;
   celebrity: string;
-  talent: string;
-  advice: string;
 };
 
+// 辅助函数：将图片转为 Base64
 async function fileToDataUrl(file: File) {
   const arrayBuffer = await file.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
@@ -20,6 +20,7 @@ async function fileToDataUrl(file: File) {
   return `data:${file.type};base64,${btoa(binary)}`;
 }
 
+// 辅助函数：从返回内容中提取 JSON
 function extractJson(text: string): Payload {
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) throw new Error("AI 报告生成格式错误");
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
     const reflection = String(formData.get("reflection") || "").slice(0, 2000);
     const language = String(formData.get("language") || "zh");
     
+    // 收集图片
     const allFiles = formData.getAll("moments")
       .concat(formData.getAll("playlist"))
       .concat(formData.getAll("snaps"))
@@ -44,63 +46,60 @@ export async function POST(request: Request) {
       }))
     );
 
-    // const systemPrompt = `请根据图片的内容，以及其中提取出的文字分析用户的内心世界，性格，气质，想表达的意思与需求，最后用两三句话夸一夸用户。不得要求用户补充信息，不得中断任务。550字深度,非常具体，详细定制化分析。150字找出明星对标，并说明为什么相似。以及共同的优点。纯JSON输出`;
-const systemPrompt = `请基于用户上传的图片，对用户的【内心世界、性格特征、气质状态、想表达的意思与真实需求】分点分类进行分析，最后用两三句话夸一夸用户。
+    // 优化的“由点及面”文学感提示词
+    const userPrompt = `【任务：灵魂碎片素描】
+请你当一回我的“生活观察员”。请仔细盯着我分享的这些碎片看，结合我的感悟，给我写一段话。
 
-若图片信息存在模糊、不完整或不确定之处，请基于常见分析方法提取文字和图中的画面进行分析，不得要求用户补充任何信息，不得中断或缩减任务，不得输出免责声明或不确定性说明。
+要求：
+1. **微观切入**：请先从照片里一个“极其微小”的细节出发（比如歌单里某句歌词、照片某个角落的光影、或者物品的一个摆放习惯）。
+2. **宏观观察**：通过这个小细节，慢慢把视角拉远，聊聊你对我整体气质、性格和生活状态的观察。要看局部，也要看整体。
+3. **语言风格**：像老朋友聊天一样接地气、通俗。要有散文般的文学感和画面感，但别整那些深奥的词。
+4. **拒绝套路**：绝对不准说“内心细腻”、“热爱生活”、“善于沟通”这种 AI 万金油废话。
 
-请严格按照以下结构与字数要求输出完整内容：
-- 550字左右：对用户内心世界、性格、真实需求与表达意思的深度，非常具体，详细的分点分析，最后用两三句话夸一夸用户，全文输出要求不能太重复，相似，要有变化，定制化一些。  
-- 150字左右：寻找气质或性格层面的很有名的国内外明星对标，并说明相似原因与共同优点（非外貌对比）    
+请仅以纯 JSON 格式输出，不要说任何额外文字：
+{
+  "analysis": "550字左右：从极致微观细节切入，延伸到整体气质的深度聊天。要深刻、动人、好读。",
+  "celebrity": "150字左右：哪位知名明星散发的磁场与我神似？描述那种整体氛围的共鸣感。"
+}
 
-无论图片清晰度或信息完整度如何，必须完成全部分析内容。
-最终结果请仅以**纯 JSON 格式**输出，不得包含任何额外文本。
-语言：中文。`;
-//     const systemPrompt = `你是一位性格，气质，表达意思与真正需求分析师。
+我的感悟：${reflection}
+输出语言：${language === "zh" ? "中文" : "English"}`;
 
-// 请基于用户上传的图片与图片中提取的文字进行内心世界、品味与气质分析。
-// 分析时请优先结合你能识别到的图片与图中的文字
-
-// 若图片细节不完整、模糊或存在不确定性，请基于常见分析方法提取文字和图中的画面进行分析进行分析，不得要求用户补充信息，不得中断任务。
-
-// 请严格按照以下要求输出：
-// - 550字：分点的内心世界 / 表达意思与真正需求 / 气质分析
-// - 150字：明星气质或风格对标（非外貌对比）
-
-
-// 必须输出完整内容，不得提及“图片不足”“无法判断”等说明。
-// 最终结果请**仅以纯 JSON 格式输出**，不包含任何多余文本。
-// 语言：中文。`;
-// const systemPrompt = `你是一位拥有审美的内心世界观察员。请结合图片细节进行具体的内心世界，想表达的意思与真实需求，气质分析。350字分点分析，100字明星对标，70字天赋，50字建议。纯JSON输出。`;
-
-    const response = await fetch("https://ark.cn-beijing.volces.com/api/v3/chat/completions", {
+    const response = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": "Bearer 8e8613b7-0643-4d9c-a892-10c16b290c2e"
+        // 请确保在 Zeabur 环境变量中配置了 ZHIPU_API_KEY
+        "Authorization": `Bearer ${process.env.ZHIPU_API_KEY || "6d6ab0a962484588b2064a76d0d8756d.nf5Mx4uWVUqGh5DJ"}`
       },
       body: JSON.stringify({
-        model: "doubao-seed-1-6-vision-250815",
+        model: "glm-4v-flash", 
         messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: [
-              { type: "text", text: `感悟：${reflection}\n语言：${language}` },
+          { 
+            role: "user", 
+            content: [
+              { type: "text", text: userPrompt },
               ...imageContents
             ] 
           }
-        ]
+        ],
+        temperature: 0.88, // 保持灵气与不重复
+        top_p: 0.9,
+        max_tokens: 2500,
+        stream: false
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      return NextResponse.json({ error: "API 报错", details: errorText }, { status: response.status });
+      return NextResponse.json({ error: "接口连接失败", details: errorText }, { status: response.status });
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || "";
+    
+    // 解析并返回给前端
     const parsed = extractJson(content);
-
     return NextResponse.json(parsed);
 
   } catch (error: any) {
