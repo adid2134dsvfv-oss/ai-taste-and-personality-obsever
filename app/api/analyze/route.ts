@@ -65,7 +65,8 @@ export async function POST(request: Request) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": "Bearer 8e8613b7-0643-4d9c-a892-10c16b290c2e"
+        // 修改点：从环境变量中读取 API Key
+        "Authorization": `Bearer ${process.env.DOUBAO_API_KEY}`
       },
       body: JSON.stringify({
         model: "doubao-seed-1-6-vision-250815",
