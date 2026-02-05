@@ -57,7 +57,7 @@ async function compressImage(file: File): Promise<File> {
 }
 
 const LOADING_LINES = [
-  "正在穿透像素审视你的灵魂...",
+  "正在通过图片发现你的性格，气质与内心世界...",
   "正在你的歌单里寻找共鸣...",
   "正在翻阅你的生活光线...",
   "正在拼接你的审美轮廓..."
