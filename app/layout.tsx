@@ -3,7 +3,10 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "AI 品味与性格观察员",
-  description: "AI taste and personality observer"
+  description: "AI taste and personality observer",
+  other: {
+    "google-adsense-account": "ca-pub-2751934218489264",
+  },
 };
 
 export default function RootLayout({
@@ -13,9 +16,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN">
-      <head>
-        <meta name="google-adsense-account" content="ca-pub-2751934218489264" />
-      </head>
       <body>{children}</body>
     </html>
   );
