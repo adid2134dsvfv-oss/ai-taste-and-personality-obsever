@@ -98,7 +98,7 @@ export async function POST(request: Request) {
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: "GLM-4.6V-FlashX",
+          model: "glm-4.6v-flashx",
           messages: [
             { role: "system", content: systemPrompt },
             {
