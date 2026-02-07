@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
 
-// 使用 Edge Runtime 确保在全球范围内（包括香港节点）拥有最佳响应速度
-export const runtime = "edge";
+// Node.js Runtime，保证 process.env 在 Zeabur 等环境下可用
+export const runtime = "nodejs";
 
-// 定义输出结构，仅保留核心的两项深度分析
+const MAX_IMAGES = 8;
+
 type Payload = {
   analysis: string;
   celebrity: string;
+  talent: string;
+  advice: string;
 };
 
-// 辅助函数：将图片文件转换为符合智谱 API 规范的 Base64 Data URL
 async function fileToDataUrl(file: File) {
   const arrayBuffer = await file.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
@@ -20,7 +22,6 @@ async function fileToDataUrl(file: File) {
   return `data:${file.type};base64,${btoa(binary)}`;
 }
 
-// 辅助函数：从 AI 的混合文本中精准提取 JSON 数据块
 function extractJson(text: string): Payload {
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) throw new Error("AI 报告生成格式错误");
@@ -30,81 +31,119 @@ function extractJson(text: string): Payload {
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
-    const reflection = String(formData.get("reflection") || "").slice(0, 2000);
+    const reflection = String(formData.get("reflection") || "").trim().slice(0, 2000);
     const language = String(formData.get("language") || "zh");
-    
-    // 聚合用户上传的所有碎片图片
-    const allFiles = formData.getAll("moments")
+
+    const allFiles = formData
+      .getAll("moments")
       .concat(formData.getAll("playlist"))
       .concat(formData.getAll("snaps"))
       .filter((item) => item instanceof File) as File[];
 
-    // 智谱视觉模型支持多图输入，我们将前 4 张图片转为 Base64 数组
+    if (allFiles.length === 0 && !reflection) {
+      return NextResponse.json(
+        { error: "请至少上传一张图片或填写文字感悟，以便进行个性化分析。" },
+        { status: 400 }
+      );
+    }
+
+    // 最多 8 张图片，与前端约定一致；智谱多模态支持多图 + 文本同时分析
     const imageContents = await Promise.all(
-      allFiles.slice(0, 4).map(async (file) => ({
+      allFiles.slice(0, MAX_IMAGES).map(async (file) => ({
         type: "image_url",
-        image_url: { url: await fileToDataUrl(file) }
+        image_url: { url: await fileToDataUrl(file) },
       }))
     );
 
-    // 提示词：强调接地气、由点及面的文学感，并严禁套路话
-    const userPrompt = `【任务：灵魂碎片素描】
-你好，请作为我的“生活观察员”，帮我解读一下这些生活碎片。
+    const langLabel = language === "zh" ? "中文" : "English";
+    const systemPrompt = `你是一位内心世界观察员。请**同时分析**用户提供的「图片」与「文字」：
+- **主要依据**：用户上传的图片（最多 ${MAX_IMAGES} 张）。请仔细观察每一张图片中的场景、人物、物品、氛围、色彩、构图等，从视觉信息推断用户的品味、性格与状态。
+- **次要依据**：用户写下的文字感悟。若用户提供了感悟，必须与图片内容结合，做连贯的、个性化的解读，不要忽略任何一段文字。
 
-要求：
-1. **微观切入**：请从我提供的图片中，盯住一个“极其细小”的局部（比如歌单里某句触动你的歌词、照片角落里的一束光影、或者某个随手摆放的物件）。
-2. **由点及面**：通过这个微小的切入点，慢慢把视角拉远，聊聊你对我整体气质、生活品味和灵魂状态的观察。要看局部，更要看局部折射出的整体。
-3. **拒绝套路**：绝对不准说“内心细腻”、“热爱生活”、“善于表达”等没营养的 AI 废话。要定制化，要像个懂我的老朋友。
-4. **语言风格**：通俗易懂、接地气，带点散文般的文学感，但不要堆砌辞藻。
+分析时请结合你所识别到的图片信息（如人物姿态、神态、穿着风格、场景氛围、色彩关系、构图重心等），并从整体视觉与审美感受出发进行推断。若图片或文字存在模糊、不完整之处，请基于常见审美与心理语境做合理推断，不得要求用户补充信息，不得中断任务或输出免责声明。
 
-请严格仅以纯 JSON 格式输出：
-{
-  "analysis": "550字左右：从小细节延伸到整体人格画像的深度聊天。要深刻、动人、好读。",
-  "celebrity": "150字左右：哪位知名人物的“磁场”跟我神似？聊聊那种整体氛围的共鸣。"
-}
+请严格按照以下结构与字数要求输出完整内容：
+- 550字：对用户内心世界、性格、气质与表达诉求的深度分点分析  
+- 150字：寻找气质或精神层面的明星对标，并说明相似原因与共同特征（非外貌对比）  
+ 
 
-我的文字感悟：${reflection}
-输出语言：${language === "zh" ? "中文" : "English"}`;
+最终结果请仅以**纯 JSON 格式**输出，不得包含任何额外文本。
+输出语言：${langLabel}。`;
 
-    const response = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        // 从 Zeabur 环境变量中读取 API Key
-        "Authorization": `Bearer ${process.env.ZHIPU_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: "glm-4.6v-flash", // 切换至用户指定的最新 4.6V 视觉模型
-        messages: [
-          { 
-            role: "user", 
-            content: [
-              { type: "text", text: userPrompt },
-              ...imageContents
-            ] 
-          }
-        ],
-        // 关键参数：开启采样并设置温度，确保输出不重复且有灵气
-        do_sample: true,
-        temperature: 0.88, 
-        top_p: 0.9,
-        max_tokens: 2500
-      })
-    });
+    const userText = [
+      reflection ? `【用户文字感悟】（请与上方图片结合分析）\n${reflection}` : "",
+      `【输出语言】${langLabel}`,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    const apiKey = process.env.ZHIPU_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json(
+        {
+          error:
+            "未配置智谱 API Key。请在 .env 或 Zeabur 环境变量中设置 ZHIPU_API_KEY。",
+        },
+        { status: 500 }
+      );
+    }
+
+    // 智谱开放平台 v4 对话补全，视觉模型 glm-4.5v 支持多图 + 文本
+    const response = await fetch(
+      "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "glm-4.5v",
+          messages: [
+            { role: "system", content: systemPrompt },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text:
+                    userText ||
+                    "请根据以上图片进行分析，输出语言：" + langLabel,
+                },
+                ...imageContents,
+              ],
+            },
+          ],
+          temperature: 0.85,
+          top_p: 0.9,
+          max_tokens: 2048,
+        }),
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
-      return NextResponse.json({ error: "智谱接口响应异常", details: errorText }, { status: response.status });
+      return NextResponse.json(
+        { error: "智谱 API 报错", details: errorText },
+        { status: response.status }
+      );
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "";
-    
-    // 解析结果并返回给前端
+    const content = data.choices?.[0]?.message?.content ?? "";
+
+    if (!content) {
+      return NextResponse.json(
+        { error: "智谱 API 未返回有效内容", details: JSON.stringify(data) },
+        { status: 502 }
+      );
+    }
+
     const parsed = extractJson(content);
     return NextResponse.json(parsed);
-
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : "服务器内部错误";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
