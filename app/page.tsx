@@ -12,8 +12,9 @@ import {
   Trash2
 } from "lucide-react";
 import Poster from "../components/Poster";
+import AdBanner from "../components/AdBanner"; // 导入广告组件
 
-// --- 深度优化压缩辅助函数：平衡识别精度与传输速度 ---
+// --- 图片压缩辅助函数：加强压缩以提升传输速度 ---
 async function compressImage(file: File): Promise<File> {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -26,8 +27,8 @@ async function compressImage(file: File): Promise<File> {
         let width = img.width;
         let height = img.height;
         
-        // 核心优化：提升至 1280px 以确保 AI 能看清截图中的文字细节
-        const MAX_SIZE = 1280; 
+        // 压缩参数：长边上限640px，平衡清晰度与传输速度
+        const MAX_SIZE = 640; 
 
         if (width > height && width > MAX_SIZE) {
           height *= MAX_SIZE / width;
@@ -41,7 +42,6 @@ async function compressImage(file: File): Promise<File> {
         canvas.height = height;
         const ctx = canvas.getContext("2d");
         if (ctx) {
-          // 开启高质量图像绘制
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = "high";
           ctx.drawImage(img, 0, 0, width, height);
@@ -53,7 +53,7 @@ async function compressImage(file: File): Promise<File> {
             resolve(new File([blob!], newFileName, { type: "image/jpeg" }));
           },
           "image/jpeg",
-          0.8 // 提升至 0.8，减少文字周围的伪影，极大辅助 AI OCR 识别
+          0.52 // JPEG质量0.52，加强压缩减少文件大小
         );
       };
     };
@@ -234,13 +234,18 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-950 via-slate-950 to-slate-900 px-6 py-16 text-white">
+      {/* 顶部广告 */}
+      <div className="mx-auto max-w-6xl mb-8">
+        <AdBanner />
+      </div>
+
       <div className="mx-auto flex max-w-6xl flex-col gap-12">
         <header className="flex flex-col gap-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.5em] text-white/60">
                 Soul Observer
-              </p>
+              </p >
               <h1 className="font-display text-4xl sm:text-5xl">
                 {labels.title}
               </h1>
@@ -258,7 +263,7 @@ export default function Home() {
           </div>
           <p className="max-w-2xl text-lg text-white/70">
             {labels.subtitle}
-          </p>
+          </p >
         </header>
 
         <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -267,7 +272,7 @@ export default function Home() {
               <div className="flex items-center justify-between">
                 <p className="text-sm uppercase tracking-[0.3em] text-white/60">
                   {labels.upload}
-                </p>
+                </p >
                 <span className="text-xs text-white/40">
                   {labels.previewHint}
                 </span>
@@ -280,7 +285,7 @@ export default function Home() {
                   </div>
                   <p className="text-xs text-white/50">
                     {MAX_COUNTS.moments} max
-                  </p>
+                  </p >
                   <input
                     type="file"
                     accept="image/*"
@@ -304,7 +309,7 @@ export default function Home() {
                   </div>
                   <p className="text-xs text-white/50">
                     {MAX_COUNTS.playlist} max
-                  </p>
+                  </p >
                   <input
                     type="file"
                     accept="image/*"
@@ -328,7 +333,7 @@ export default function Home() {
                   </div>
                   <p className="text-xs text-white/50">
                     {MAX_COUNTS.snaps} max
-                  </p>
+                  </p >
                   <input
                     type="file"
                     accept="image/*"
@@ -364,7 +369,7 @@ export default function Home() {
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-white/40">
                   {labels.moments}
-                </p>
+                </p >
                 <FilePreview
                   files={moments}
                   onRemove={(index) =>
@@ -377,7 +382,7 @@ export default function Home() {
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-white/40">
                   {labels.playlist}
-                </p>
+                </p >
                 <FilePreview
                   files={playlist}
                   onRemove={(index) =>
@@ -390,7 +395,7 @@ export default function Home() {
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-white/40">
                   {labels.snaps}
-                </p>
+                </p >
                 <FilePreview
                   files={snaps}
                   onRemove={(index) =>
@@ -416,7 +421,7 @@ export default function Home() {
             {error && (
               <p className="text-sm text-red-300" role="alert">
                 {error}
-              </p>
+              </p >
             )}
           </div>
 
@@ -424,7 +429,7 @@ export default function Home() {
             {loading ? (
               <div className="flex h-full flex-col justify-center gap-6 rounded-[32px] border border-white/15 bg-white/5 p-8 text-white/70">
                 <LoaderCircle className="h-10 w-10 animate-spin text-white/80" />
-                <p className="text-lg">{loadingLine}</p>
+                <p className="text-lg">{loadingLine}</p >
                 <button
                   type="button"
                   onClick={() => setLineIndex((prev) => prev + 1)}
@@ -452,6 +457,11 @@ export default function Home() {
             )}
           </div>
         </section>
+
+        {/* 底部广告 */}
+        <div className="mt-8">
+          <AdBanner />
+        </div>
       </div>
     </main>
   );
